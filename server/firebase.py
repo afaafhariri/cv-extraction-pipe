@@ -1,13 +1,13 @@
 import firebase_admin
-from firebase_admin import credentials, storage, firestore
+from firebase_admin import credentials, storage
+import os
 
+FIREBASE_CRED_FILE = os.path.join(os.getcwd(), "firebase-credentials.json")
 
-cred = credentials.Certificate("/firebase-credentials.json ")
+if not firebase_admin._apps:
+    cred = credentials.Certificate(FIREBASE_CRED_FILE)
+    firebase_admin.initialize_app(cred, {
+        "storageBucket": "cv-extraction-84ef2.appspot.com"  
+    })
 
-
-firebase_admin.initialize_app(cred, {
-    'storageBucket': 'cv-extraction-84ef2.appspot.com'
-})
-
-
-db = firestore.client()
+bucket = storage.bucket()
