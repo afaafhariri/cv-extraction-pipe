@@ -2,7 +2,7 @@ import firebase_admin
 from firebase_admin import credentials, storage
 import os
 
-FIREBASE_CRED_FILE = os.path.join(os.getcwd(), "firebase.json")
+FIREBASE_CRED_FILE = os.path.join(os.getcwd(), "firebase-key.json")
 
 if not firebase_admin._apps:
     cred = credentials.Certificate(FIREBASE_CRED_FILE)
