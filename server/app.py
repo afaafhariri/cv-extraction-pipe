@@ -8,6 +8,8 @@ from email.mime.text import MIMEText
 from flask import Flask, request, jsonify
 from werkzeug.utils import secure_filename
 from docx import Document
+from flask import Flask
+from flask_cors import CORS
 
 # Import Firebase bucket from your separate firebase file
 from firebase import bucket
@@ -26,6 +28,7 @@ sheet = gc.open_by_key(SHEET_ID).sheet1
 
 # --------------------- Firebase Setup ----------------------------
 app = Flask(__name__)
+CORS(app)
 
 ALLOWED_EXTENSIONS = {"pdf", "docx"}
 
