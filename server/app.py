@@ -3,11 +3,13 @@ import datetime
 import uuid
 import requests
 import pdfplumber
-
+import smtplib
+from email.mime.text import MIMEText
 from flask import Flask, request, jsonify
 from werkzeug.utils import secure_filename
 from docx import Document
 
+# Import Firebase bucket from your separate firebase file
 from firebase import bucket
 
 # --------------------- Google Sheets Setup ----------------------
@@ -21,7 +23,6 @@ gc = gspread.authorize(gs_creds)
 
 SHEET_ID = "1UUK23iOdUwecTdXMwMiHqeZj9ooDh8Rs9jP9QnGSdCw"
 sheet = gc.open_by_key(SHEET_ID).sheet1
-
 
 # --------------------- Firebase Setup ----------------------------
 app = Flask(__name__)
@@ -60,7 +61,7 @@ def upload_file_to_firebase(local_path, filename):
     unique_name = str(uuid.uuid4()) + "_" + filename
     blob = bucket.blob(unique_name)
     blob.upload_from_filename(local_path)
-    blob.make_public()  # Make file publicly accessible
+    blob.make_public()  
     return blob.public_url
 
 # --------------------- Write to Google Sheets ---------------------
@@ -145,6 +146,58 @@ def submit_cv():
 
     else:
         return jsonify({"error": "Invalid file type. Only PDF or DOCX allowed."}), 400
+
+# --------------------- Email Scheduling using APScheduler ---------------------
+from apscheduler.schedulers.background import BackgroundScheduler
+from dotenv import load_dotenv
+load_dotenv()
+
+def send_followup_emails():
+    # Retrieve email addresses from Google Sheets (assuming emails are in column 2)
+    try:
+        emails = sheet.col_values(2)[1:]  # Skip header row if present
+    except Exception as e:
+        print("Error retrieving emails from Google Sheets:", e)
+        return
+
+    smtp_server = "smtp.gmail.com"
+    smtp_port = 587
+    sender_email = os.environ.get("EMAIL_USER")   # Loaded from .env
+    sender_password = os.environ.get("EMAIL_PASS")  # Loaded from .env
+
+    subject = "Your CV is under review"
+    body = (
+        "Hello,\n\n"
+        "Thank you for submitting your CV. Your application is under review, "
+        "and we will update you shortly.\n\n"
+        "Best regards,\nThe Team"
+    )
+
+    for recipient_email in emails:
+        if not recipient_email.strip():
+            continue
+
+        msg = MIMEText(body)
+        msg["Subject"] = subject
+        msg["From"] = sender_email
+        msg["To"] = recipient_email
+
+        try:
+            with smtplib.SMTP(smtp_server, smtp_port) as server:
+                server.starttls()
+                server.login(sender_email, sender_password)
+                server.send_message(msg)
+            print(f"Follow-up email sent to {recipient_email} at {datetime.datetime.now()}")
+        except Exception as e:
+            print(f"Failed to send email to {recipient_email}: {e}")
+
+scheduler = BackgroundScheduler()
+# Schedule the follow-up email job to run every day at 9:00 AM server time.
+scheduler.add_job(send_followup_emails, 'cron', hour=9, minute=0)
+scheduler.start()
+
+import atexit
+atexit.register(lambda: scheduler.shutdown())
 
 if __name__ == "__main__":
     os.makedirs("temp_uploads", exist_ok=True)
