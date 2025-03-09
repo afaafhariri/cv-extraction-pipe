@@ -14,7 +14,7 @@ export default function Home() {
   const [fileName, setFileName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const FLASK_API_URL = "http://localhost:5000";
+  const FLASK_API_URL = "http://127.0.0.1:5000:5000";
 
   const handleChange = (e) => {
     const { name, value } = e.target;
