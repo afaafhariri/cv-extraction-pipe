@@ -153,7 +153,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def send_followup_emails():
-    # Retrieve email addresses from Google Sheets (assuming emails are in column 2)
+    
     try:
         emails = sheet.col_values(2)[1:]  # Skip header row if present
     except Exception as e:
@@ -192,7 +192,6 @@ def send_followup_emails():
             print(f"Failed to send email to {recipient_email}: {e}")
 
 scheduler = BackgroundScheduler()
-# Schedule the follow-up email job to run every day at 9:00 AM server time.
 scheduler.add_job(send_followup_emails, 'cron', hour=9, minute=0)
 scheduler.start()
 
