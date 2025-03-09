@@ -12,7 +12,7 @@ from flask import Flask
 from flask_cors import CORS
 
 # Import Firebase bucket from your separate firebase file
-from firebase import bucket
+from firebaseconfig import bucket
 
 # --------------------- Google Sheets Setup ----------------------
 import gspread
