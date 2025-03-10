@@ -6,19 +6,34 @@ import pdfplumber
 import smtplib
 from email.mime.text import MIMEText
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from docx import Document
-from flask import Flask
-from flask_cors import CORS
-
-# Import Firebase bucket from your separate firebase file
-from firebaseconfig import bucket
-
-# --------------------- Google Sheets Setup ----------------------
+import firebase_admin
+from firebase_admin import credentials, storage
 import gspread
 from google.oauth2.service_account import Credentials
+from apscheduler.schedulers.background import BackgroundScheduler
+from dotenv import load_dotenv
+import atexit
 
-SERVICE_ACCOUNT_FILE = "google-sheets.json" 
+# --------------------- Firebase Setup ---------------------
+# Determine the base directory and the path to your Firebase Admin SDK JSON file.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FIREBASE_CRED_FILE = os.path.join(BASE_DIR, "cvextract-7df01-firebase-adminsdk-fbsvc-5d7940eb0a.json")
+
+# Initialize the Firebase app only once
+if not firebase_admin._apps:
+    cred = credentials.Certificate(FIREBASE_CRED_FILE)
+    firebase_admin.initialize_app(cred, {
+        "storageBucket": "cvextract-7df01.appspot.com"
+    })
+
+# Create a bucket instance to use later for file uploads
+bucket = storage.bucket()
+
+# --------------------- Google Sheets Setup ----------------------
+SERVICE_ACCOUNT_FILE = os.path.join(BASE_DIR, "google-sheets.json")
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 gs_creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
 gc = gspread.authorize(gs_creds)
@@ -26,7 +41,7 @@ gc = gspread.authorize(gs_creds)
 SHEET_ID = "1UUK23iOdUwecTdXMwMiHqeZj9ooDh8Rs9jP9QnGSdCw"
 sheet = gc.open_by_key(SHEET_ID).sheet1
 
-# --------------------- Firebase Setup ----------------------------
+# --------------------- Flask App Setup ----------------------------
 app = Flask(__name__)
 CORS(app)
 
@@ -151,12 +166,9 @@ def submit_cv():
         return jsonify({"error": "Invalid file type. Only PDF or DOCX allowed."}), 400
 
 # --------------------- Email Scheduling using APScheduler ---------------------
-from apscheduler.schedulers.background import BackgroundScheduler
-from dotenv import load_dotenv
 load_dotenv()
 
 def send_followup_emails():
-    
     try:
         emails = sheet.col_values(2)[1:]  # Skip header row if present
     except Exception as e:
@@ -198,7 +210,6 @@ scheduler = BackgroundScheduler()
 scheduler.add_job(send_followup_emails, 'cron', hour=9, minute=0)
 scheduler.start()
 
-import atexit
 atexit.register(lambda: scheduler.shutdown())
 
 if __name__ == "__main__":
