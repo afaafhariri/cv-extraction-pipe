@@ -75,19 +75,15 @@ def extract_sections(full_text):
 
 # --------------------- Upload to AWS S3 -------------------------
 def upload_file_to_s3(local_path, filename):
-    """
-    Uploads the file at local_path to AWS S3 with a unique name.
-    The file is set to be publicly readable.
-    Returns the public URL of the uploaded file.
-    """
     unique_filename = str(uuid.uuid4()) + "_" + filename
     try:
-        s3_client.upload_file(local_path, S3_BUCKET, unique_filename, ExtraArgs={"ACL": "public-read"})
+        s3_client.upload_file(local_path, S3_BUCKET, unique_filename)
         public_url = f"https://{S3_BUCKET}.s3.amazonaws.com/{unique_filename}"
         return public_url
     except Exception as e:
         print("Error uploading file to S3:", e)
         return None
+
 
 # --------------------- Write to Google Sheets ---------------------
 def write_to_google_sheet(row_data):
