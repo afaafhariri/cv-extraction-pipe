@@ -9,30 +9,25 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from docx import Document
-import firebase_admin
-from firebase_admin import credentials, storage
+import boto3
 import gspread
 from google.oauth2.service_account import Credentials
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 import atexit
 
-# --------------------- Firebase Setup ---------------------
-# Determine the base directory and the path to your Firebase Admin SDK JSON file.
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FIREBASE_CRED_FILE = os.path.join(BASE_DIR, "cvextract-7df01-firebase-adminsdk-fbsvc-5d7940eb0a.json")
-
-# Initialize the Firebase app only once
-if not firebase_admin._apps:
-    cred = credentials.Certificate(FIREBASE_CRED_FILE)
-    firebase_admin.initialize_app(cred, {
-        "storageBucket": "cvextract-7df01.appspot.com"
-    })
-
-# Create a bucket instance to use later for file uploads
-bucket = storage.bucket("cvextract-7df01.appspot.com")
+# --------------------- AWS S3 Setup ---------------------
+# Setup Steps:
+# 1. Install boto3: pip install boto3
+# 2. Configure your AWS credentials either via environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+#    or by using the AWS CLI configuration (~/.aws/credentials).
+# 3. Create an S3 bucket in your AWS account and set its bucket policy to allow public read access.
+# 4. Set the S3_BUCKET environment variable (or update the default value below) with your bucket name.
+S3_BUCKET = os.environ.get("S3_BUCKET", "cvextractionbucket")
+s3_client = boto3.client('s3')
 
 # --------------------- Google Sheets Setup ----------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SERVICE_ACCOUNT_FILE = os.path.join(BASE_DIR, "google-sheets.json")
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 gs_creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
@@ -66,7 +61,11 @@ def parse_docx(file_path):
 def extract_sections(full_text):
     """
     Placeholder extraction logic.
-    Replace with actual logic for Education, Qualifications, and Projects.
+    Replace with actual logic for:
+    - Education
+    - Qualifications
+    - Projects
+    - Personal Info (Name, Contact Details, etc.)
     """
     return {
         "education": ["Bachelor of Science in Something"],
@@ -74,13 +73,21 @@ def extract_sections(full_text):
         "projects": ["Sample Project"],
     }
 
-# --------------------- Upload to Firebase -------------------------
-def upload_file_to_firebase(local_path, filename):
-    unique_name = str(uuid.uuid4()) + "_" + filename
-    blob = bucket.blob(unique_name)
-    blob.upload_from_filename(local_path)
-    blob.make_public()  
-    return blob.public_url
+# --------------------- Upload to AWS S3 -------------------------
+def upload_file_to_s3(local_path, filename):
+    """
+    Uploads the file at local_path to AWS S3 with a unique name.
+    The file is set to be publicly readable.
+    Returns the public URL of the uploaded file.
+    """
+    unique_filename = str(uuid.uuid4()) + "_" + filename
+    try:
+        s3_client.upload_file(local_path, S3_BUCKET, unique_filename, ExtraArgs={"ACL": "public-read"})
+        public_url = f"https://{S3_BUCKET}.s3.amazonaws.com/{unique_filename}"
+        return public_url
+    except Exception as e:
+        print("Error uploading file to S3:", e)
+        return None
 
 # --------------------- Write to Google Sheets ---------------------
 def write_to_google_sheet(row_data):
@@ -88,10 +95,14 @@ def write_to_google_sheet(row_data):
 
 # --------------------- Webhook Notification -----------------------
 def send_webhook_notification(payload):
+    """
+    Sends an HTTP POST request to the given endpoint with the CV payload.
+    The header 'X-Candidate-Email' is set to the candidate's email (change if needed).
+    """
     webhook_url = "https://rnd-assignment.automations-3d6.workers.dev/"
     headers = {
         "Content-Type": "application/json",
-        "X-Candidate-Email": "haririafaaf@gmail.com"  
+        "X-Candidate-Email": "haririafaaf@gmail.com"  # Replace with your candidate email if necessary.
     }
     response = requests.post(webhook_url, json=payload, headers=headers)
     return response.status_code
@@ -119,7 +130,9 @@ def submit_cv():
         local_path = os.path.join("temp_uploads", filename)
         cv_file.save(local_path)
        
-        public_url = upload_file_to_firebase(local_path, filename)
+        public_url = upload_file_to_s3(local_path, filename)
+        if not public_url:
+            return jsonify({"error": "File upload failed"}), 500
 
         file_ext = filename.rsplit(".", 1)[1].lower()
         if file_ext == "pdf":
@@ -137,6 +150,7 @@ def submit_cv():
             "cv_public_link": public_url
         }
 
+        # Write the CV data to Google Sheets
         write_to_google_sheet([
             name,
             email,
@@ -147,12 +161,13 @@ def submit_cv():
             ", ".join(sections["projects"])
         ])
 
+        # Prepare the webhook payload.
         payload = {
             "cv_data": cv_data,
             "metadata": {
                 "applicant_name": name,
                 "email": email,
-                "status": "testing",  
+                "status": "testing",  # Use "prod" for a final submission.
                 "cv_processed": True,
                 "processed_timestamp": datetime.datetime.utcnow().isoformat() + "Z"
             }
@@ -207,6 +222,7 @@ def send_followup_emails():
             print(f"Failed to send email to {recipient_email}: {e}")
 
 scheduler = BackgroundScheduler()
+# Schedule the follow-up email to run every day at 9 AM UTC (adjust as needed for local time zones).
 scheduler.add_job(send_followup_emails, 'cron', hour=9, minute=0)
 scheduler.start()
 
