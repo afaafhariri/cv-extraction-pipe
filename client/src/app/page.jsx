@@ -186,7 +186,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={handleRemoveFile}
-                  className="p-2 text-gray-700 bg-[var(--foreground)] border hover:bg-[var(--background)] hover:text-[var(--foreground)] transition-all duration-300"
+                  className="p-2 text-[var(--foreground)] bg-[var(--background)] border cursor-pointer"
                 >
                   Remove
                 </button>
@@ -197,7 +197,7 @@ export default function Home() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full p-2 border cursor-pointer bg-[var(--background)] text-[var(--foreground)] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full p-2 border cursor-pointer bg-[var(--foreground)] text-[var(--background)] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? "Submitting..." : "Submit Application"}
           </button>
