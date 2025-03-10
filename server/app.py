@@ -30,7 +30,7 @@ if not firebase_admin._apps:
     })
 
 # Create a bucket instance to use later for file uploads
-bucket = storage.bucket()
+bucket = storage.bucket("cvextract-7df01.appspot.com")
 
 # --------------------- Google Sheets Setup ----------------------
 SERVICE_ACCOUNT_FILE = os.path.join(BASE_DIR, "google-sheets.json")
