@@ -15,14 +15,9 @@ from google.oauth2.service_account import Credentials
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 import atexit
+import threading  # For asynchronous webhook calls
 
 # --------------------- AWS S3 Setup ---------------------
-# Setup Steps:
-# 1. Install boto3: pip install boto3
-# 2. Configure your AWS credentials either via environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
-#    or by using the AWS CLI configuration (~/.aws/credentials).
-# 3. Create an S3 bucket in your AWS account and set its bucket policy to allow public read access.
-# 4. Set the S3_BUCKET environment variable (or update the default value below) with your bucket name.
 S3_BUCKET = os.environ.get("S3_BUCKET", "cvextractionbucket")
 s3_client = boto3.client('s3')
 
@@ -84,7 +79,6 @@ def upload_file_to_s3(local_path, filename):
         print("Error uploading file to S3:", e)
         return None
 
-
 # --------------------- Write to Google Sheets ---------------------
 def write_to_google_sheet(row_data):
     sheet.append_row(row_data)
@@ -93,15 +87,20 @@ def write_to_google_sheet(row_data):
 def send_webhook_notification(payload):
     """
     Sends an HTTP POST request to the given endpoint with the CV payload.
-    The header 'X-Candidate-Email' is set to the candidate's email (change if needed).
+    Uses a timeout to avoid blocking indefinitely.
     """
     webhook_url = "https://rnd-assignment.automations-3d6.workers.dev/"
     headers = {
         "Content-Type": "application/json",
-        "X-Candidate-Email": "haririafaaf@gmail.com"  # Replace with your candidate email if necessary.
+        "X-Candidate-Email": "haririafaaf@gmail.com"  # Replace if necessary.
     }
-    response = requests.post(webhook_url, json=payload, headers=headers)
-    return response.status_code
+    try:
+        response = requests.post(webhook_url, json=payload, headers=headers, timeout=5)
+        print("Webhook response:", response.status_code)
+    except requests.exceptions.Timeout:
+        print("Webhook request timed out.")
+    except Exception as e:
+        print("Error sending webhook notification:", e)
 
 # --------------------- Flask API Endpoint -------------------------
 @app.route("/submit", methods=["POST"])
@@ -169,7 +168,8 @@ def submit_cv():
             }
         }
 
-        send_webhook_notification(payload)
+        # Send the webhook notification asynchronously.
+        threading.Thread(target=send_webhook_notification, args=(payload,)).start()
 
         return jsonify(payload), 201
 
@@ -188,8 +188,8 @@ def send_followup_emails():
 
     smtp_server = "smtp.gmail.com"
     smtp_port = 587
-    sender_email = os.environ.get("EMAIL_USER")   # Loaded from .env
-    sender_password = os.environ.get("EMAIL_PASS")  # Loaded from .env
+    sender_email = os.environ.get("EMAIL_USER")
+    sender_password = os.environ.get("EMAIL_PASS")
 
     subject = "Your CV is under review"
     body = (
@@ -218,7 +218,6 @@ def send_followup_emails():
             print(f"Failed to send email to {recipient_email}: {e}")
 
 scheduler = BackgroundScheduler()
-# Schedule the follow-up email to run every day at 9 AM UTC (adjust as needed for local time zones).
 scheduler.add_job(send_followup_emails, 'cron', hour=9, minute=0)
 scheduler.start()
 
