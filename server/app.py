@@ -15,17 +15,17 @@ from google.oauth2.service_account import Credentials
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 import atexit
-import threading  # For asynchronous webhook calls
+import threading
+import json
 
 # --------------------- AWS S3 Setup ---------------------
 S3_BUCKET = os.environ.get("S3_BUCKET", "cvextractionbucket")
 s3_client = boto3.client('s3')
 
 # --------------------- Google Sheets Setup ----------------------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SERVICE_ACCOUNT_FILE = os.path.join(BASE_DIR, "google-sheets.json")
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-gs_creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+credentials_info = json.loads(os.environ.get("GOOGLE_SHEETS_CREDENTIALS"))
+gs_creds = Credentials.from_service_account_info(credentials_info, scopes=SCOPES)
 gc = gspread.authorize(gs_creds)
 
 SHEET_ID = "1UUK23iOdUwecTdXMwMiHqeZj9ooDh8Rs9jP9QnGSdCw"
