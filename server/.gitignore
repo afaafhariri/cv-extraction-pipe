@@ -1,4 +1,5 @@
 google-sheets.json
 .env
 /temp_uploads
-/venv
+
+venv/
