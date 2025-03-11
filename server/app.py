@@ -23,6 +23,7 @@ S3_BUCKET = os.environ.get("S3_BUCKET", "cvextractionbucket")
 s3_client = boto3.client('s3')
 
 # --------------------- Google Sheets Setup ----------------------
+load_dotenv()
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 credentials_info = json.loads(os.environ.get("GOOGLE_SHEETS_CREDENTIALS"))
 gs_creds = Credentials.from_service_account_info(credentials_info, scopes=SCOPES)
